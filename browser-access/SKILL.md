@@ -110,7 +110,27 @@ Claude in Chrome needs site-level permission, granted in the extension. If a too
 
 ## Fallback Path: Chrome DevTools MCP
 
-Use when the task needs DevTools-only instrumentation, or when Claude in Chrome is unavailable.
+Use when the task needs DevTools-only instrumentation, or when Claude in Chrome is unavailable (for example a session authenticated with `ANTHROPIC_API_KEY`, where Claude in Chrome does not load).
+
+### Ask Which Chrome to Attach To
+
+Before the first DevTools call in a session, **ask the user once** whether to use auto-connect mode. Do not pick for them.
+
+| Mode | What it does | Good for |
+|------|--------------|----------|
+| `--auto-connect` | Attaches to the user's own running Chrome (Chrome 144+). Same profile, cookies and open tabs. The user enables it at `chrome://inspect/#remote-debugging` | Pages behind a login the user already has |
+| Default (no flag) | chrome-devtools-mcp launches its own separate Chrome with an empty profile | Clean-slate checks, nothing touching the user's tabs |
+
+The mode is fixed by the MCP registration, so switching needs a re-register and a session restart:
+
+```
+claude mcp remove -s user chrome-devtools
+claude mcp add -s user chrome-devtools -- npx -y chrome-devtools-mcp@latest --auto-connect   # or without --auto-connect
+```
+
+Run `claude mcp` with `ANTHROPIC_API_KEY` unset when the session uses an API key. If the registered mode already matches the answer, skip the re-register.
+
+> 한글: 세션에서 DevTools를 처음 쓰기 전에 **auto-connect 모드를 쓸지 사용자에게 한 번 묻습니다.** 임의로 고르지 않습니다. `--auto-connect`는 사용자가 쓰는 크롬(144+)에 붙어 같은 프로필·로그인·탭을 씁니다(`chrome://inspect/#remote-debugging`에서 켬). 플래그 없이 등록하면 별도 프로필의 새 크롬을 띄웁니다(로그인 없음). 모드는 MCP 등록에 고정되므로 바꾸려면 다시 등록하고 세션을 재시작합니다. API 키 세션이면 `claude mcp`는 `ANTHROPIC_API_KEY`를 빼고 실행합니다. 이미 원하는 모드로 등록돼 있으면 재등록하지 않습니다.
 
 ### Connection Check
 
@@ -272,7 +292,7 @@ Explain what you attempted, what went wrong, and ask how to proceed. Do not retr
 Browser task
     │
     ├── Needs perf trace / heap / Lighthouse / emulation / detailed timing?
-    │       └── Chrome DevTools MCP → connection check → run
+    │       └── Chrome DevTools MCP → ask auto-connect? → connection check → run
     │
     └── Everything else → Claude in Chrome
             │
@@ -288,9 +308,9 @@ Browser task
             │       └── Ask auth method → guide browser login → screenshot verify → retry
             │
             ├── Claude in Chrome unavailable?
-            │       └── Fall back to Chrome DevTools MCP
+            │       └── Fall back to Chrome DevTools MCP (ask auto-connect first)
             │
             └── 2–3 failures in a row? → stop, report, ask user
 ```
 
-> 한글: 브라우저 작업 → 성능 트레이스·힙·Lighthouse·에뮬레이션·상세 타이밍이면 Chrome DevTools(연결 확인 후 실행). 그 외 전부 Claude in Chrome → `claude-in-chrome` 스킬 실행 → ToolSearch 한 번에 도구 로드 → `tabs_context_mcp` 확인 후 탭 생성 → 작업 수행. 사이트 권한 차단 시 설명·요청·대기·재시도 / 인증 오류 시 방식 확인·로그인 안내·스크린샷 검증·재시도 / Claude in Chrome 불가 시 DevTools 폴백 / 2~3회 연속 실패 시 중단하고 사용자에게 보고.
+> 한글: 브라우저 작업 → 성능 트레이스·힙·Lighthouse·에뮬레이션·상세 타이밍이면 Chrome DevTools(auto-connect 여부 확인 → 연결 확인 후 실행). 그 외 전부 Claude in Chrome → `claude-in-chrome` 스킬 실행 → ToolSearch 한 번에 도구 로드 → `tabs_context_mcp` 확인 후 탭 생성 → 작업 수행. 사이트 권한 차단 시 설명·요청·대기·재시도 / 인증 오류 시 방식 확인·로그인 안내·스크린샷 검증·재시도 / Claude in Chrome 불가 시 DevTools 폴백(auto-connect 여부 먼저 질문) / 2~3회 연속 실패 시 중단하고 사용자에게 보고.
